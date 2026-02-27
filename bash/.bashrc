@@ -33,28 +33,29 @@ export NVM_DIR="$HOME/.nvm"
 export TERM=xterm-256color
 
 # Prompt color codes (only used inside PS1 — must stay \[ \] wrapped)
-_R='\[\e[0m\]'      # reset
-_BD='\[\e[1m\]'     # bold
-_CY='\[\e[96m\]'    # bright cyan   — username
-_BL='\[\e[94m\]'    # bright blue   — host
-_YL='\[\e[33m\]'    # yellow        — path
-_MG='\[\e[35m\]'    # magenta       — git branch
-_GN='\[\e[92m\]'    # bright green  — ok arrow
-_RD='\[\e[91m\]'    # bright red    — error arrow
+_R='\[\e[0m\]'   # reset
+_BD='\[\e[1m\]'  # bold
+_CY='\[\e[96m\]' # bright cyan   — username
+_BL='\[\e[94m\]' # bright blue   — host
+_YL='\[\e[33m\]' # yellow        — path
+_MG='\[\e[35m\]' # magenta       — git branch
+_GN='\[\e[92m\]' # bright green  — ok arrow
+_RD='\[\e[91m\]' # bright red    — error arrow
 
 # Git branch shown in prompt
 _git_ps1() {
   local b
-  b=$(git symbolic-ref --short HEAD 2>/dev/null) \
-    || b=$(git rev-parse --short HEAD 2>/dev/null) \
-    || return
+  b=$(git symbolic-ref --short HEAD 2>/dev/null) ||
+    b=$(git rev-parse --short HEAD 2>/dev/null) ||
+    return
   printf ' (%s)' "$b"
 }
 
 # PROMPT_COMMAND rebuilds PS1 every command so exit-code coloring works
 _build_ps1() {
   local rc=$?
-  local arrow_col; [ $rc -eq 0 ] && arrow_col=$_GN || arrow_col=$_RD
+  local arrow_col
+  [ $rc -eq 0 ] && arrow_col=$_GN || arrow_col=$_RD
   PS1="${_BD}${_CY}\u${_R}@${_BD}${_BL}\h${_R} ${_YL}\w${_R}${_MG}\$(_git_ps1)${_R}\n${arrow_col}❯${_R} "
 }
 PROMPT_COMMAND='_build_ps1'
@@ -78,7 +79,6 @@ alias cp='cp -i'
 alias rm='rm -i'
 alias v='nvim'
 alias c='clear'
-
 # Extract any archive format
 extract() {
   [ ! -f "$1" ] && {
@@ -126,6 +126,8 @@ export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
 # =========================================================================== #
 #  MISC
 # =========================================================================== #
-[ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
 
+mdread() { pandoc "$1" | lynx -stdin; }
+
+[ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
 export CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000
