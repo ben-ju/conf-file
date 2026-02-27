@@ -17,6 +17,7 @@ export VISUAL=nvim
 export MANPAGER='nvim +Man!'
 
 export GOPATH="$HOME/go"
+export PATH="$HOME/.fzf/bin:$PATH"          # newer fzf must come before /usr/bin/fzf
 export PATH="$PATH:/opt/nvim-linux64/bin"
 export PATH="$PATH:$HOME/.local/opt/go/bin:$GOPATH/bin"
 export PATH="$PATH:$HOME/.cargo/bin:$HOME/.local/bin"
@@ -127,7 +128,7 @@ export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
 #  MISC
 # =========================================================================== #
 
-mdread() { pandoc "$1" | lynx -stdin; }
+mdread() { glow -p "${1:--}"; }
 
 [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
 export CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000
