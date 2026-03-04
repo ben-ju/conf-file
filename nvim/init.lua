@@ -159,6 +159,11 @@ wk.add({
   { "<leader>h", group = "hunk"     },
   { "<leader>s", group = "split"    },
   { "<leader>u", group = "ui"       },
+  -- Surround hints (mini.surround)
+  -- sa{motion}{char}  → add     e.g. saiw( → (word)    saiw" → "word"
+  -- sd{char}          → delete  e.g. sd(   → word      sd"   → word
+  -- sr{old}{new}      → replace e.g. sr"(  → (word)    sr('  → 'word'
+  { "s", group = "surround", mode = { "n", "v" } },
 })
 
 -- ── MINI.FILES ──────────────────────────────────────────────────
@@ -735,6 +740,8 @@ map("n", "<leader>fk", fzf.keymaps,                     { desc = "Keymaps"      
 map("n", "<leader>fc", fzf.commands,                    { desc = "Commands"              })
 map("n", "<leader>fd", fzf.diagnostics_document,        { desc = "Document diagnostics"  })
 map("n", "<leader>fD", fzf.diagnostics_workspace,       { desc = "Workspace diagnostics" })
+map("n", "<leader>fo", fzf.lsp_document_symbols,        { desc = "Buffer outline"        })
+map("n", "<leader>fO", fzf.lsp_workspace_symbols,       { desc = "Workspace symbols"     })
 
 -- Also wire up gr/gs for visual grep
 map("v", "<leader>fg", fzf.grep_visual,                 { desc = "Grep selection"        })
