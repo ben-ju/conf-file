@@ -492,6 +492,7 @@ local lsp_server_names = {
   "jsonls", "yamlls", "taplo",
   "dockerls", "docker_compose_language_service",
   "sqls",
+  "pyright",
   "bashls", "lua_ls",
   "marksman",
 }
@@ -793,6 +794,17 @@ map("n", "<C-d>", "<C-d>zz",            { desc = "Half-page down"         })
 map("n", "<C-u>", "<C-u>zz",            { desc = "Half-page up"           })
 map("n", "n",     "nzzzv",              { desc = "Next match (centered)"  })
 map("n", "N",     "Nzzzv",              { desc = "Prev match (centered)"  })
+
+-- Copy file path and line range to clipboard
+map("v", "<leader>yp", function()
+  local start_line = vim.fn.line("v")
+  local end_line = vim.fn.line(".")
+  if start_line > end_line then start_line, end_line = end_line, start_line end
+  local path = vim.fn.expand("%:.")
+  local text = string.format("file path : %s on line : %d to %d", path, start_line, end_line)
+  vim.fn.setreg("+", text)
+  vim.notify(text)
+end, { desc = "Copy path + line range" })
 
 -- Move selected lines up / down
 map("v", "<A-j>", ":m '>+1<cr>gv=gv", { desc = "Move lines down" })
