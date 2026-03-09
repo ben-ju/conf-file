@@ -716,9 +716,18 @@ local function find_vcvarsall()
   end
   -- -products * is required to find Build Tools (vs -latest which only finds full VS)
   local result = vim.fn.system({ vswhere, "-products", "*", "-latest", "-property", "installationPath" })
-  local path = vim.trim(result)
-  if path == "" then return nil end
-  _vcvarsall_cache = path .. "\\VC\\Auxiliary\\Build\\vcvarsall.bat"
+  -- Strip \r\n (Windows line endings) in addition to standard trim
+  local path = result:gsub("[\r\n]+$", ""):match("^%s*(.-)%s*$")
+  if path == "" then
+    vim.notify("vswhere found no VS/BuildTools installation", vim.log.levels.ERROR)
+    return nil
+  end
+  local bat = path .. "\\VC\\Auxiliary\\Build\\vcvarsall.bat"
+  if vim.fn.filereadable(bat) == 0 then
+    vim.notify("vcvarsall.bat not found at: " .. bat, vim.log.levels.ERROR)
+    return nil
+  end
+  _vcvarsall_cache = bat
   return _vcvarsall_cache
 end
 
@@ -735,10 +744,7 @@ local function build_c(run_after)
   local cmd
   if vim.fn.has("win32") == 1 then
     local vcvars = find_vcvarsall()
-    if not vcvars then
-      vim.notify("vcvarsall.bat not found — install MSVC Build Tools", vim.log.levels.ERROR)
-      return
-    end
+    if not vcvars then return end  -- find_vcvarsall already notified the error
     local run_cmd = run_after and (" && " .. name .. ".exe") or ""
     -- /Zi = debug info  /W4 = high warnings  /Fe: = output name
     cmd = string.format(
