@@ -1,6 +1,10 @@
 # =========================================================================== #
 #  PowerShell Profile — mirrors bash/.bashrc for Windows
+#  Compatible with PowerShell 5.1+ and PowerShell 7+
 # =========================================================================== #
+
+# ESC character (works in PS 5.1 where `e is not supported)
+$ESC = [char]0x1b
 
 # =========================================================================== #
 #  ENVIRONMENT
@@ -41,9 +45,9 @@ function prompt {
     $path    = (Get-Location).Path.Replace($HOME, "~")
     $gitInfo = _GitBranch
 
-    $arrow = if ($lastOk) { "`e[92m>`e[0m" } else { "`e[91m>`e[0m" }
+    if ($lastOk) { $arrowColor = "92" } else { $arrowColor = "91" }
 
-    "`e[1m`e[96m${user}`e[0m@`e[1m`e[94m${host_}`e[0m `e[33m${path}`e[0m`e[35m${gitInfo}`e[0m`n${arrow} "
+    "${ESC}[1m${ESC}[96m${user}${ESC}[0m@${ESC}[1m${ESC}[94m${host_}${ESC}[0m ${ESC}[33m${path}${ESC}[0m${ESC}[35m${gitInfo}${ESC}[0m`n${ESC}[${arrowColor}m>${ESC}[0m "
 }
 
 # =========================================================================== #
@@ -69,7 +73,6 @@ function mdread { glow -p @args }
 # =========================================================================== #
 #  FZF KEYBINDINGS (PSFzf module — optional)
 # =========================================================================== #
-# If PSFzf is installed, wire up Ctrl+T (file) and Ctrl+R (history)
 if (Get-Module -ListAvailable -Name PSFzf) {
     Import-Module PSFzf
     Set-PsFzfOption -PSReadlineChordProvider 'Ctrl+t' -PSReadlineChordReverseHistory 'Ctrl+r'
@@ -81,9 +84,14 @@ if (Get-Module -ListAvailable -Name PSFzf) {
 if (Get-Module -ListAvailable -Name PSReadLine) {
     Import-Module PSReadLine
     Set-PSReadLineOption -EditMode Emacs
-    Set-PSReadLineOption -PredictionSource History
-    Set-PSReadLineOption -PredictionViewStyle ListView
     Set-PSReadLineKeyHandler -Key UpArrow   -Function HistorySearchBackward
     Set-PSReadLineKeyHandler -Key DownArrow -Function HistorySearchForward
     Set-PSReadLineKeyHandler -Key Tab       -Function MenuComplete
+
+    # Prediction features require PSReadLine 2.2+ (PowerShell 7+)
+    $psrlVersion = (Get-Module PSReadLine).Version
+    if ($psrlVersion -ge [version]"2.2.0") {
+        Set-PSReadLineOption -PredictionSource History
+        Set-PSReadLineOption -PredictionViewStyle ListView
+    }
 }
