@@ -714,7 +714,8 @@ local function find_vcvarsall()
     vim.notify("vswhere.exe not found — MSVC Build Tools may not be installed", vim.log.levels.ERROR)
     return nil
   end
-  local result = vim.fn.system({ vswhere, "-latest", "-property", "installationPath" })
+  -- -products * is required to find Build Tools (vs -latest which only finds full VS)
+  local result = vim.fn.system({ vswhere, "-products", "*", "-latest", "-property", "installationPath" })
   local path = vim.trim(result)
   if path == "" then return nil end
   _vcvarsall_cache = path .. "\\VC\\Auxiliary\\Build\\vcvarsall.bat"
