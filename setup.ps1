@@ -245,19 +245,10 @@ if (Test-Path $vsWhere) {
 if ($hasMSVC) {
     Log "MSVC Build Tools already installed"
 } else {
-    Log "Downloading Visual Studio Build Tools installer..."
-    $vsInstaller = "$env:TEMP\vs_BuildTools.exe"
-    Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vs_BuildTools.exe" -OutFile $vsInstaller -UseBasicParsing
-
-    Log "Installing MSVC C/C++ tools + Windows SDK (this may take a few minutes)..."
-    $installArgs = @(
-        "--add", "Microsoft.VisualStudio.Workload.VCTools",
-        "--add", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-        "--add", "Microsoft.VisualStudio.Component.Windows11SDK.22621",
-        "--passive", "--norestart", "--wait"
-    )
-    Start-Process -FilePath $vsInstaller -ArgumentList $installArgs -Wait
-    Remove-Item $vsInstaller -Force -ErrorAction SilentlyContinue
+    Log "Installing MSVC Build Tools + Windows SDK via winget..."
+    winget install Microsoft.VisualStudio.2022.BuildTools `
+        --override "--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22621 --passive --norestart" `
+        --accept-source-agreements --accept-package-agreements
     Log "MSVC Build Tools + Windows SDK installed"
 }
 
