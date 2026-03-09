@@ -138,7 +138,8 @@ $scoopPackages = @(
     @{ Name = "bat";     Cmd = "bat"  },
     @{ Name = "fd";      Cmd = "fd"   },
     @{ Name = "curl";    Cmd = "curl" },
-    @{ Name = "unzip";   Cmd = "unzip" }
+    @{ Name = "unzip";   Cmd = "unzip" },
+    @{ Name = "cmake";   Cmd = "cmake" }
 )
 
 foreach ($pkg in $scoopPackages) {
@@ -229,7 +230,38 @@ if (CommandExists glow) {
     scoop install glow
 }
 
-# ── 12. PSFzf module (fzf keybindings for PowerShell) ──────────────────────
+# ── 12. MSVC Build Tools + Windows SDK ─────────────────────────────────────
+# Required for compiling C code targeting the Windows API (MalDev Academy, etc.)
+# Installs cl.exe, link.exe, windows.h, ntdll.lib, and all Win32/NT API headers.
+Step "MSVC Build Tools + Windows SDK"
+
+$vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+$hasMSVC = $false
+if (Test-Path $vsWhere) {
+    $instances = & $vsWhere -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -format json 2>$null | ConvertFrom-Json
+    if ($instances -and $instances.Count -gt 0) { $hasMSVC = $true }
+}
+
+if ($hasMSVC) {
+    Log "MSVC Build Tools already installed"
+} else {
+    Log "Downloading Visual Studio Build Tools installer..."
+    $vsInstaller = "$env:TEMP\vs_BuildTools.exe"
+    Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vs_BuildTools.exe" -OutFile $vsInstaller -UseBasicParsing
+
+    Log "Installing MSVC C/C++ tools + Windows SDK (this may take a few minutes)..."
+    $installArgs = @(
+        "--add", "Microsoft.VisualStudio.Workload.VCTools",
+        "--add", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+        "--add", "Microsoft.VisualStudio.Component.Windows11SDK.22621",
+        "--passive", "--norestart", "--wait"
+    )
+    Start-Process -FilePath $vsInstaller -ArgumentList $installArgs -Wait
+    Remove-Item $vsInstaller -Force -ErrorAction SilentlyContinue
+    Log "MSVC Build Tools + Windows SDK installed"
+}
+
+# ── 13. PSFzf module (fzf keybindings for PowerShell) ──────────────────────
 Step "PSFzf module"
 
 if (Get-Module -ListAvailable -Name PSFzf) {
@@ -239,7 +271,7 @@ if (Get-Module -ListAvailable -Name PSFzf) {
     Install-Module -Name PSFzf -Scope CurrentUser -Force -SkipPublisherCheck
 }
 
-# ── 13. Symlinks ────────────────────────────────────────────────────────────
+# ── 14. Symlinks ────────────────────────────────────────────────────────────
 Step "Symlinks"
 
 $nvimConfigDir = "$env:LOCALAPPDATA\nvim"
@@ -249,7 +281,7 @@ MakeSymlink "$CONF_DIR\nvim\init.lua" "$nvimConfigDir\init.lua"
 $psProfileDir = Split-Path -Parent $PROFILE
 MakeSymlink "$CONF_DIR\powershell\Microsoft.PowerShell_profile.ps1" $PROFILE
 
-# ── 14. Neovim plugin bootstrap ────────────────────────────────────────────
+# ── 15. Neovim plugin bootstrap ────────────────────────────────────────────
 Step "Neovim plugins"
 
 RefreshPath

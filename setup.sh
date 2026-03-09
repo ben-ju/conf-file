@@ -22,7 +22,7 @@ set -euo pipefail
 
 # ── Constants ───────────────────────────────────────────────────────────────
 CONF_DIR="$(cd "$(dirname "$0")" && pwd)"
-NVIM_VERSION="v0.11.1"
+NVIM_VERSION="v0.12.0"
 GO_VERSION="1.23.6"
 LAZYGIT_VERSION="0.44.1"
 GLOW_VERSION="2.0.0"
@@ -72,7 +72,7 @@ step "APT packages"
 PACKAGES=(
   git curl wget unzip tar gzip
   build-essential cmake
-  fzf ripgrep bat
+  fzf ripgrep bat fd-find
   python3 python3-pip python3-venv
   bash-completion
   xclip                        # clipboard support for WSL/X11
@@ -87,6 +87,13 @@ if command_exists batcat && ! command_exists bat; then
   mkdir -p "$HOME/.local/bin"
   ln -sf "$(which batcat)" "$HOME/.local/bin/bat"
   log "Linked batcat -> bat"
+fi
+
+# fd is installed as 'fdfind' on Ubuntu — create symlink if needed
+if command_exists fdfind && ! command_exists fd; then
+  mkdir -p "$HOME/.local/bin"
+  ln -sf "$(which fdfind)" "$HOME/.local/bin/fd"
+  log "Linked fdfind -> fd"
 fi
 
 # ── 3. Neovim ─────────────────────────────────────────────────────────────

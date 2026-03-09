@@ -95,12 +95,17 @@ vim.pack.add({
   { src ="https://github.com/williamboman/mason-lspconfig.nvim",          name = "mason-lspconfig"   },
   { src ="https://github.com/neovim/nvim-lspconfig",                     name = "nvim-lspconfig"    },
   { src ="https://github.com/stevearc/conform.nvim",                      name = "conform"           },
+  -- Phase 7: Debug
+  { src ="https://github.com/mfussenegger/nvim-dap",                     name = "nvim-dap"          },
+  { src ="https://github.com/rcarriga/nvim-dap-ui",                      name = "nvim-dap-ui"       },
+  { src ="https://github.com/nvim-neotest/nvim-nio",                     name = "nvim-nio"          },
 })
 
 for _, name in ipairs({
   "catppuccin", "mini.nvim", "which-key", "fzf-lua", "nvim-treesitter", "gitsigns",
   "LuaSnip", "blink.cmp", "mason", "mason-lspconfig",
   "nvim-lspconfig", "conform",
+  "nvim-nio", "nvim-dap", "nvim-dap-ui",
 }) do
   vim.cmd.packadd(name)
 end
@@ -157,6 +162,7 @@ wk.add({
   { "<leader>f", group = "find"     },
   { "<leader>g", group = "git"      },
   { "<leader>h", group = "hunk"     },
+  { "<leader>d", group = "debug"    },
   { "<leader>s", group = "split"    },
   { "<leader>u", group = "ui"       },
   -- Surround hints (mini.surround)
@@ -534,6 +540,19 @@ if mason_ok then
   end)
 end
 
+-- Auto-install DAP adapters via Mason
+if mason_ok then
+  pcall(function()
+    local mr = require("mason-registry")
+    for _, name in ipairs({ "codelldb" }) do
+      local pkg = mr.get_package(name)
+      if not pkg:is_installed() then
+        pkg:install()
+      end
+    end
+  end)
+end
+
 -- LSP buffer keymaps (always registered; conform falls back gracefully if not loaded)
 vim.api.nvim_create_autocmd("LspAttach", {
   group    = vim.api.nvim_create_augroup("user_lsp_attach", { clear = true }),
@@ -620,6 +639,112 @@ if conform_ok then
       toml            = { "taplo"              },
     },
   })
+end
+
+-- ── DAP (Debug Adapter Protocol) ──────────────────────────────────
+-- Replaces Visual Studio's debugger: F5, F9, F10, F11
+-- Adapter: codelldb (auto-installed via Mason above)
+local dap_ok, dap = pcall(require, "dap")
+local dapui_ok, dapui = pcall(require, "dapui")
+
+if dap_ok then
+  -- codelldb adapter
+  dap.adapters.codelldb = {
+    type = "server",
+    port = "${port}",
+    executable = {
+      command = "codelldb",
+      args = { "--port", "${port}" },
+    },
+  }
+
+  -- C / C++ / Rust debug configurations
+  local c_config = {
+    {
+      name = "Launch executable",
+      type = "codelldb",
+      request = "launch",
+      program = function()
+        local sep = vim.fn.has("win32") == 1 and "\\" or "/"
+        return vim.fn.input("Executable: ", vim.fn.getcwd() .. sep, "file")
+      end,
+      cwd = "${workspaceFolder}",
+      stopOnEntry = false,
+    },
+    {
+      name = "Attach to process",
+      type = "codelldb",
+      request = "attach",
+      pid = function() return require("dap.utils").pick_process() end,
+    },
+  }
+  dap.configurations.c    = c_config
+  dap.configurations.cpp  = c_config
+  dap.configurations.rust = c_config
+
+  -- Breakpoint signs
+  vim.fn.sign_define("DapBreakpoint",          { text = "●", texthl = "DiagnosticError" })
+  vim.fn.sign_define("DapBreakpointCondition", { text = "◆", texthl = "DiagnosticWarn"  })
+  vim.fn.sign_define("DapBreakpointRejected",  { text = "○", texthl = "DiagnosticHint"  })
+  vim.fn.sign_define("DapStopped",             { text = "▶", texthl = "DiagnosticInfo",
+                                                 linehl = "CursorLine" })
+end
+
+if dapui_ok and dap_ok then
+  dapui.setup()
+  -- Auto open/close DAP UI on debug session start/end
+  dap.listeners.after.event_initialized["dapui_config"] = function() dapui.open()  end
+  dap.listeners.before.event_terminated["dapui_config"] = function() dapui.close() end
+  dap.listeners.before.event_exited["dapui_config"]     = function() dapui.close() end
+end
+
+-- ── BUILD (C/C++) ─────────────────────────────────────────────────
+-- Compile current file with debug symbols.
+-- Windows: cl.exe (MSVC) via vcvarsall  |  Linux: gcc
+-- Usage:  <leader>cb  build  |  <leader>cx  build & run
+local _vcvarsall_cache = nil
+
+local function find_vcvarsall()
+  if _vcvarsall_cache then return _vcvarsall_cache end
+  if vim.fn.has("win32") == 0 then return nil end
+  local vswhere = vim.fn.expand("$PROGRAMFILES(X86)")
+    .. "\\Microsoft Visual Studio\\Installer\\vswhere.exe"
+  if vim.fn.executable(vswhere) == 0 then return nil end
+  local result = vim.fn.system({ vswhere, "-latest", "-property", "installationPath" })
+  local path = vim.trim(result)
+  if path == "" then return nil end
+  _vcvarsall_cache = path .. "\\VC\\Auxiliary\\Build\\vcvarsall.bat"
+  return _vcvarsall_cache
+end
+
+local function build_c(run_after)
+  local ft = vim.bo.filetype
+  if ft ~= "c" and ft ~= "cpp" then
+    vim.notify("Not a C/C++ file", vim.log.levels.WARN)
+    return
+  end
+  vim.cmd("silent write")
+  local file = vim.fn.expand("%:t")
+  local name = vim.fn.expand("%:t:r")
+
+  local cmd
+  if vim.fn.has("win32") == 1 then
+    local vcvars = find_vcvarsall()
+    if not vcvars then
+      vim.notify("vcvarsall.bat not found — install MSVC Build Tools", vim.log.levels.ERROR)
+      return
+    end
+    local run_cmd = run_after and (" && " .. name .. ".exe") or ""
+    -- /Zi = debug info  /W4 = high warnings  /Fe: = output name
+    cmd = string.format(
+      'cmd /k ""%s" x64 >nul 2>&1 && cl.exe /nologo /W4 /Zi "%s" /Fe:"%s.exe"%s"',
+      vcvars, file, name, run_cmd
+    )
+  else
+    local run_cmd = run_after and (" && ./" .. name) or ""
+    cmd = string.format("gcc -Wall -Wextra -g -o '%s' '%s'%s", name, file, run_cmd)
+  end
+  vim.cmd("botright 15split | terminal " .. cmd)
 end
 
 -- ── MINI.NOTIFY ─────────────────────────────────────────────────
@@ -754,6 +879,35 @@ map("n", "<leader>gf", function()
   if file ~= "" then lazygit_open("-f " .. vim.fn.shellescape(file))
   else lazygit_open() end
 end, { desc = "LazyGit (current file)" })
+
+-- Debug (DAP) — mirrors Visual Studio keybindings
+if dap_ok then
+  map("n", "<F5>",    dap.continue,          { desc = "Debug: continue/start" })
+  map("n", "<S-F5>",  dap.terminate,         { desc = "Debug: stop"           })
+  map("n", "<F9>",    dap.toggle_breakpoint, { desc = "Debug: breakpoint"     })
+  map("n", "<F10>",   dap.step_over,         { desc = "Debug: step over"      })
+  map("n", "<F11>",   dap.step_into,         { desc = "Debug: step into"      })
+  map("n", "<S-F11>", dap.step_out,          { desc = "Debug: step out"       })
+
+  map("n", "<leader>dc", dap.continue,          { desc = "Continue"            })
+  map("n", "<leader>db", dap.toggle_breakpoint, { desc = "Breakpoint"          })
+  map("n", "<leader>dB", function()
+    dap.set_breakpoint(vim.fn.input("Condition: "))
+  end,                                           { desc = "Conditional breakpoint" })
+  map("n", "<leader>do", dap.step_over,         { desc = "Step over"           })
+  map("n", "<leader>di", dap.step_into,         { desc = "Step into"           })
+  map("n", "<leader>dO", dap.step_out,          { desc = "Step out"            })
+  map("n", "<leader>dr", dap.repl.toggle,       { desc = "Toggle REPL"         })
+  map("n", "<leader>dt", dap.terminate,         { desc = "Terminate"           })
+  map("n", "<leader>dl", dap.run_last,          { desc = "Run last config"     })
+end
+if dapui_ok then
+  map("n", "<leader>du", dapui.toggle, { desc = "Toggle DAP UI" })
+end
+
+-- Build (C/C++)
+map("n", "<leader>cb", function() build_c(false) end, { desc = "Build C file"     })
+map("n", "<leader>cx", function() build_c(true)  end, { desc = "Build & run C"    })
 
 -- Window navigation
 map("n", "<C-h>", "<C-w>h", { desc = "Window left"  })
