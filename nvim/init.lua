@@ -700,46 +700,11 @@ end
 
 -- ── BUILD (C/C++) ─────────────────────────────────────────────────
 -- Compile current file with debug symbols.
--- Windows: cl.exe (MSVC) via vcvarsall  |  Linux: gcc
+-- Windows: cl.exe (MSVC)  |  Linux: gcc
 -- Usage:  <leader>cb  build  |  <leader>cx  build & run
-local _vcvarsall_cache = nil
-
-local function find_vcvarsall()
-  if _vcvarsall_cache then return _vcvarsall_cache end
-  if vim.fn.has("win32") == 0 then return nil end
-
-  -- Try well-known paths first (fastest, no subprocess)
-  local candidates = {
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\Build\\vcvarsall.bat",
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat",
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Professional\\VC\\Auxiliary\\Build\\vcvarsall.bat",
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build\\vcvarsall.bat",
-  }
-  for _, bat in ipairs(candidates) do
-    if vim.fn.filereadable(bat) == 1 then
-      _vcvarsall_cache = bat
-      return _vcvarsall_cache
-    end
-  end
-
-  -- Fallback: use vswhere for non-standard install paths
-  local pf86 = vim.env["ProgramFiles(x86)"] or "C:\\Program Files (x86)"
-  local vswhere = pf86 .. "\\Microsoft Visual Studio\\Installer\\vswhere.exe"
-  if vim.fn.executable(vswhere) == 1 then
-    local result = vim.fn.system({ vswhere, "-products", "*", "-latest", "-property", "installationPath" })
-    local path = result:gsub("[\r\n]+$", ""):match("^%s*(.-)%s*$")
-    if path ~= "" then
-      local bat = path .. "\\VC\\Auxiliary\\Build\\vcvarsall.bat"
-      if vim.fn.filereadable(bat) == 1 then
-        _vcvarsall_cache = bat
-        return _vcvarsall_cache
-      end
-    end
-  end
-
-  vim.notify("vcvarsall.bat not found — install MSVC Build Tools", vim.log.levels.ERROR)
-  return nil
-end
+--
+-- On Windows: if cl.exe is already on PATH (launched nvim from Developer
+-- Command Prompt), it's used directly. Otherwise we source vcvarsall.bat.
 
 local function build_c(run_after)
   local ft = vim.bo.filetype
@@ -748,22 +713,31 @@ local function build_c(run_after)
     return
   end
   vim.cmd("silent write")
-  local file = vim.fn.expand("%:t")
-  local name = vim.fn.expand("%:t:r")
+  local file = vim.fn.expand("%:p")      -- full path to source
+  local name = vim.fn.expand("%:p:r")    -- full path without extension
+  local dir  = vim.fn.expand("%:p:h")    -- directory of source file
 
   local cmd
   if vim.fn.has("win32") == 1 then
-    local vcvars = find_vcvarsall()
-    if not vcvars then return end  -- find_vcvarsall already notified the error
-    local run_cmd = run_after and (" && " .. name .. ".exe") or ""
-    -- /Zi = debug info  /W4 = high warnings  /Fe: = output name
-    cmd = string.format(
-      'cmd /k ""%s" x64 >nul 2>&1 && cl.exe /nologo /W4 /Zi "%s" /Fe:"%s.exe"%s"',
-      vcvars, file, name, run_cmd
-    )
+    local run_cmd = run_after and (' && "' .. name .. '.exe"') or ""
+    if vim.fn.executable("cl") == 1 then
+      -- cl.exe already on PATH (nvim launched from Developer Command Prompt)
+      cmd = string.format(
+        'cmd /c "cd /d "%s" && cl.exe /nologo /W4 /Zi "%s" /Fe:"%s.exe"%s"',
+        dir, file, name, run_cmd
+      )
+    else
+      -- Source vcvarsall.bat first, then compile
+      local vcvars = [[C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat]]
+      cmd = string.format(
+        'cmd /c "cd /d "%s" && "%s" x64 >nul 2>&1 && cl.exe /nologo /W4 /Zi "%s" /Fe:"%s.exe"%s"',
+        dir, vcvars, file, name, run_cmd
+      )
+    end
   else
-    local run_cmd = run_after and (" && ./" .. name) or ""
-    cmd = string.format("gcc -Wall -Wextra -g -o '%s' '%s'%s", name, file, run_cmd)
+    local run_cmd = run_after and (" && ./" .. vim.fn.expand("%:t:r")) or ""
+    cmd = string.format("cd '%s' && gcc -Wall -Wextra -g -o '%s' '%s'%s",
+      dir, vim.fn.expand("%:t:r"), vim.fn.expand("%:t"), run_cmd)
   end
   vim.cmd("botright 15split | terminal " .. cmd)
 end
