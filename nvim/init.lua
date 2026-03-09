@@ -707,28 +707,38 @@ local _vcvarsall_cache = nil
 local function find_vcvarsall()
   if _vcvarsall_cache then return _vcvarsall_cache end
   if vim.fn.has("win32") == 0 then return nil end
-  -- vim.fn.expand() breaks on env vars with parentheses — use vim.env directly
-  local pf86 = vim.env["ProgramFiles(x86)"] or vim.env["PROGRAMFILES(X86)"] or "C:\\Program Files (x86)"
+
+  -- Try well-known paths first (fastest, no subprocess)
+  local candidates = {
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\Build\\vcvarsall.bat",
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat",
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Professional\\VC\\Auxiliary\\Build\\vcvarsall.bat",
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build\\vcvarsall.bat",
+  }
+  for _, bat in ipairs(candidates) do
+    if vim.fn.filereadable(bat) == 1 then
+      _vcvarsall_cache = bat
+      return _vcvarsall_cache
+    end
+  end
+
+  -- Fallback: use vswhere for non-standard install paths
+  local pf86 = vim.env["ProgramFiles(x86)"] or "C:\\Program Files (x86)"
   local vswhere = pf86 .. "\\Microsoft Visual Studio\\Installer\\vswhere.exe"
-  if vim.fn.executable(vswhere) == 0 then
-    vim.notify("vswhere.exe not found — MSVC Build Tools may not be installed", vim.log.levels.ERROR)
-    return nil
+  if vim.fn.executable(vswhere) == 1 then
+    local result = vim.fn.system({ vswhere, "-products", "*", "-latest", "-property", "installationPath" })
+    local path = result:gsub("[\r\n]+$", ""):match("^%s*(.-)%s*$")
+    if path ~= "" then
+      local bat = path .. "\\VC\\Auxiliary\\Build\\vcvarsall.bat"
+      if vim.fn.filereadable(bat) == 1 then
+        _vcvarsall_cache = bat
+        return _vcvarsall_cache
+      end
+    end
   end
-  -- -products * is required to find Build Tools (vs -latest which only finds full VS)
-  local result = vim.fn.system({ vswhere, "-products", "*", "-latest", "-property", "installationPath" })
-  -- Strip \r\n (Windows line endings) in addition to standard trim
-  local path = result:gsub("[\r\n]+$", ""):match("^%s*(.-)%s*$")
-  if path == "" then
-    vim.notify("vswhere found no VS/BuildTools installation", vim.log.levels.ERROR)
-    return nil
-  end
-  local bat = path .. "\\VC\\Auxiliary\\Build\\vcvarsall.bat"
-  if vim.fn.filereadable(bat) == 0 then
-    vim.notify("vcvarsall.bat not found at: " .. bat, vim.log.levels.ERROR)
-    return nil
-  end
-  _vcvarsall_cache = bat
-  return _vcvarsall_cache
+
+  vim.notify("vcvarsall.bat not found — install MSVC Build Tools", vim.log.levels.ERROR)
+  return nil
 end
 
 local function build_c(run_after)
