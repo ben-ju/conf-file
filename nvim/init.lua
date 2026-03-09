@@ -707,9 +707,13 @@ local _vcvarsall_cache = nil
 local function find_vcvarsall()
   if _vcvarsall_cache then return _vcvarsall_cache end
   if vim.fn.has("win32") == 0 then return nil end
-  local vswhere = vim.fn.expand("$PROGRAMFILES(X86)")
-    .. "\\Microsoft Visual Studio\\Installer\\vswhere.exe"
-  if vim.fn.executable(vswhere) == 0 then return nil end
+  -- vim.fn.expand() breaks on env vars with parentheses — use vim.env directly
+  local pf86 = vim.env["ProgramFiles(x86)"] or vim.env["PROGRAMFILES(X86)"] or "C:\\Program Files (x86)"
+  local vswhere = pf86 .. "\\Microsoft Visual Studio\\Installer\\vswhere.exe"
+  if vim.fn.executable(vswhere) == 0 then
+    vim.notify("vswhere.exe not found — MSVC Build Tools may not be installed", vim.log.levels.ERROR)
+    return nil
+  end
   local result = vim.fn.system({ vswhere, "-latest", "-property", "installationPath" })
   local path = vim.trim(result)
   if path == "" then return nil end
