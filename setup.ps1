@@ -255,16 +255,18 @@ Step "Neovim plugins"
 RefreshPath
 
 if (CommandExists nvim) {
-    Log "Launching Neovim to download plugins and Treesitter parsers..."
+    Log "Launching Neovim to let vim.pack download plugins..."
 
-    # First pass: sync plugins via vim.pack
-    nvim --headless "+Lazy! sync" "+qa" 2>$null
-    # Second pass: let vim.pack finish downloading
-    nvim --headless "+sleep 5" "+qa" 2>$null
+    # vim.pack clones repos on first launch — give it time to finish
+    nvim --headless "+sleep 10" "+qa" 2>$null
+
+    # Second pass: trigger Treesitter parser installs
+    Log "Installing Treesitter parsers..."
+    nvim --headless "+TSUpdateSync" "+qa" 2>$null
 
     Log "Plugins bootstrapped (Mason LSP servers install on first file open)"
 } else {
-    Err "nvim not found on PATH. Restart your terminal and run: nvim --headless '+Lazy! sync' +qa"
+    Err "nvim not found on PATH. Restart your terminal and run: nvim --headless '+sleep 10' +qa"
 }
 
 # ── Done ────────────────────────────────────────────────────────────────────

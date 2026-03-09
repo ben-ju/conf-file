@@ -196,10 +196,12 @@ fi
 # ── 9. Neovim plugin bootstrap ───────────────────────────────────────────
 step "Neovim plugins"
 
-log "Launching Neovim to download plugins and Treesitter parsers..."
-nvim --headless "+Lazy! sync" +qa 2>/dev/null || true
-# vim.pack auto-downloads on first launch, just open and quit
-nvim --headless "+sleep 5" +qa 2>/dev/null || true
+log "Launching Neovim to let vim.pack download plugins..."
+# vim.pack clones repos on first launch — give it time to finish
+nvim --headless "+sleep 10" +qa 2>/dev/null || true
+# Trigger Treesitter parser installs
+log "Installing Treesitter parsers..."
+nvim --headless "+TSUpdateSync" +qa 2>/dev/null || true
 log "Plugins bootstrapped (Mason LSP servers install on first file open)"
 
 # ── Done ──────────────────────────────────────────────────────────────────
