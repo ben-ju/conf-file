@@ -281,12 +281,15 @@ if (CommandExists nvim) {
     Log "Launching Neovim to let vim.pack download plugins..."
 
     # Pass 1: vim.pack clones plugin repos (they aren't on runtimepath yet)
-    nvim --headless "+sleep 15" "+qa" 2>$null
+    # Temporarily allow errors — nvim writes to stderr during headless mode
+    $ErrorActionPreference = "Continue"
+    nvim --headless "+sleep 15" "+qa" 2>&1 | Out-Null
 
     # Pass 2: plugins are now on runtimepath — nvim-treesitter's
     # ensure_installed kicks in and compiles parsers
     Log "Second launch: loading plugins and installing Treesitter parsers..."
-    nvim --headless "+sleep 20" "+qa" 2>$null
+    nvim --headless "+sleep 20" "+qa" 2>&1 | Out-Null
+    $ErrorActionPreference = "Stop"
 
     Log "Plugins bootstrapped (Mason LSP servers install on first file open)"
 } else {
