@@ -192,7 +192,8 @@ if (CommandExists rustc) {
 } else {
     Log "Installing Rust via rustup..."
     scoop install rustup
-    rustup-init -y --default-toolchain stable 2>$null
+    RefreshPath
+    rustup default stable
     RefreshPath
     Log "Rust installed"
 }
